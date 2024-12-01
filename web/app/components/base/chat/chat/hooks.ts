@@ -71,6 +71,11 @@ export const useChat = (
     }
   }, [])
 
+  useEffect(() => {
+    setChatList(prevChatList || [])
+    chatListRef.current = prevChatList || []
+  }, [prevChatList])
+
   const handleUpdateChatList = useCallback((newChatList: ChatItem[]) => {
     setChatList(newChatList)
     chatListRef.current = newChatList
@@ -249,7 +254,7 @@ export const useChat = (
       else
         ttsUrl = `/apps/${params.appId}/text-to-audio`
     }
-    const player = AudioPlayerManager.getInstance().getAudioPlayer(ttsUrl, ttsIsPublic, uuidV4(), 'none', 'none', (_: any): any => {})
+    const player = AudioPlayerManager.getInstance().getAudioPlayer(ttsUrl, ttsIsPublic, uuidV4(), 'none', 'none', (_: any): any => { })
     ssePost(
       url,
       {

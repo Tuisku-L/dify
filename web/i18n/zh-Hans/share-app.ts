@@ -26,6 +26,8 @@ const translation = {
     },
     tryToSolve: '尝试解决',
     temporarySystemIssue: '抱歉，临时系统问题。',
+    loadedAllMessages: '已加载所有消息',
+
   },
   generation: {
     tabs: {

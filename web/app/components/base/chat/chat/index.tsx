@@ -10,7 +10,7 @@ import {
   useState,
 } from 'react'
 import { useTranslation } from 'react-i18next'
-import { debounce } from 'lodash-es'
+import { debounce, throttle } from 'lodash-es'
 import { useShallow } from 'zustand/react/shallow'
 import type {
   ChatConfig,
@@ -70,6 +70,8 @@ export type ChatProps = {
   showFileUpload?: boolean
   onFeatureBarClick?: (state: boolean) => void
   noSpacing?: boolean
+  onScrollToTop?: () => void
+  hasMoreMessages?: boolean
 }
 
 const Chat: FC<ChatProps> = ({
@@ -106,6 +108,8 @@ const Chat: FC<ChatProps> = ({
   showFileUpload,
   onFeatureBarClick,
   noSpacing,
+  onScrollToTop,
+  hasMoreMessages,
 }) => {
   const { t } = useTranslation()
   const { currentLogItem, setCurrentLogItem, showPromptLogModal, setShowPromptLogModal, showAgentLogModal, setShowAgentLogModal } = useAppStore(useShallow(state => ({
@@ -122,11 +126,44 @@ const Chat: FC<ChatProps> = ({
   const chatFooterRef = useRef<HTMLDivElement>(null)
   const chatFooterInnerRef = useRef<HTMLDivElement>(null)
   const userScrolledRef = useRef(false)
+  const lastScrollTopRef = useRef(0)
+  const previousScrollHeightRef = useRef(0)
+  const haveMoreMessagesRef = useRef(hasMoreMessages)
+
+  useEffect(() => {
+    haveMoreMessagesRef.current = hasMoreMessages
+  }, [hasMoreMessages])
 
   const handleScrollToBottom = useCallback(() => {
     if (chatList.length > 1 && chatContainerRef.current && !userScrolledRef.current)
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight
   }, [chatList.length])
+
+  const handleScrollToTop = useCallback(() => {
+    const handleScroll = throttle(async () => {
+      if (haveMoreMessagesRef.current && chatContainerRef.current) {
+        const currentScrollTop = chatContainerRef.current.scrollTop
+        const isScrollingUp = currentScrollTop < lastScrollTopRef.current
+
+        if (isScrollingUp && currentScrollTop < 50) {
+          previousScrollHeightRef.current = chatContainerRef.current.scrollHeight
+          onScrollToTop && onScrollToTop()
+          if (chatContainerRef.current) {
+            const newScrollTop = chatContainerRef.current.scrollHeight - previousScrollHeightRef.current + currentScrollTop
+            chatContainerRef.current.scrollTop = newScrollTop > 0 ? newScrollTop : 1
+          }
+        }
+
+        lastScrollTopRef.current = currentScrollTop
+      }
+    }, 1000)
+
+    chatContainerRef.current?.addEventListener('scroll', handleScroll)
+
+    return () => {
+      chatContainerRef.current?.removeEventListener('scroll', handleScroll)
+    }
+  }, [onScrollToTop, hasMoreMessages])
 
   const handleWindowResize = useCallback(() => {
     if (chatContainerRef.current)
@@ -142,7 +179,8 @@ const Chat: FC<ChatProps> = ({
   useEffect(() => {
     handleScrollToBottom()
     handleWindowResize()
-  }, [handleScrollToBottom, handleWindowResize])
+    handleScrollToTop()
+  }, [handleScrollToBottom, handleWindowResize, handleScrollToTop])
 
   useEffect(() => {
     if (chatContainerRef.current) {
@@ -216,6 +254,14 @@ const Chat: FC<ChatProps> = ({
             ref={chatContainerInnerRef}
             className={cn('w-full', !noSpacing && 'px-8', chatContainerInnerClassName)}
           >
+            {
+              !hasMoreMessages
+              && <div className="flex justify-center content-center w-full mb-6">
+                <div className="text-gray-500 text-sm text-center my-4 relative">
+                  {t('share.chat.loadedAllMessages')}
+                </div>
+              </div>
+            }
             {
               chatList.map((item, index) => {
                 if (item.isAnswer) {
